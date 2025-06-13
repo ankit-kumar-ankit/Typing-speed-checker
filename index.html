@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Typing Speed Checker</title>
+  <style>
+    :root {
+      --bg-light: #f5f5f5;
+      --text-light: #333;
+      --bg-dark: #1e1e2f;
+      --text-dark: #eee;
+      --primary: #6c63ff;
+    }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      margin: 0;
+      padding: 0;
+      background: var(--bg-light);
+      color: var(--text-light);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 30px;
+      transition: all 0.3s ease;
+    }
+
+    body.dark-mode {
+      background: var(--bg-dark);
+      color: var(--text-dark);
+    }
+
+    .container {
+      background: rgba(0,0,0,0.05);
+      padding: 30px;
+      border-radius: 15px;
+      width: 100%;
+      max-width: 800px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+      transition: all 0.3s ease;
+    }
+
+    body.dark-mode .container {
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    h1 {
+      text-align: center;
+    }
+
+    .quote {
+      font-size: 1.1em;
+      margin: 20px 0;
+      padding: 15px;
+      border-left: 5px solid var(--primary);
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 5px;
+      min-height: 120px;
+      white-space: pre-wrap;
+    }
+
+    #inputArea {
+      width: 100%;
+      padding: 12px;
+      font-size: 1em;
+      border: 2px solid #ccc;
+      border-radius: 5px;
+      margin-top: 10px;
+      outline: none;
+    }
+
+    .results, .timer, #liveWPM {
+      margin-top: 20px;
+      font-size: 1.1em;
+    }
+
+    button {
+      padding: 12px 24px;
+      background-color: var(--primary);
+      color: white;
+      border: none;
+      font-size: 1em;
+      border-radius: 5px;
+      cursor: pointer;
+      margin-top: 20px;
+      margin-right: 10px;
+    }
+
+    button:hover {
+      background-color: #594fd0;
+    }
+
+    .char.correct {
+      color: green;
+    }
+
+    .char.incorrect {
+      color: red;
+    }
+
+    .char.active {
+      text-decoration: underline;
+      animation: blink 1s step-end infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+
+    .toggle {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+    }
+  </style>
+</head>
+<body>
+
+  <button class="toggle" onclick="toggleTheme()">🌓 Toggle Mode</button>
+
+  <h1>Typing Speed Checker</h1>
+  <div class="container">
+    <div class="timer" id="timer">Time Left: 60s</div>
+    <div id="liveWPM"></div>
+    <div class="quote" id="quote">Loading...</div>
+    <input type="text" id="inputArea" placeholder="Start typing here..." />
+    <div class="results" id="result"></div>
+    <button onclick="startTest()">Try Again</button>
+    <button id="submitBtn" onclick="submitTyping()">Submit</button>
+  </div>
+
+  <audio id="errorSound" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
+
+  <script>
+    const quotes = [
+      "Success is not final, failure is not fatal: It is the courage to continue that counts.",
+      "In the middle of difficulty lies opportunity. Life is ten percent what happens to us and ninety percent how we respond to it.",
+      "The only way to do great work is to love what you do. Don't settle. As with all matters of the heart, you'll know when you find it.",
+      "The purpose of our lives is to be happy. It's not about how hard you hit. It's about how hard you can get hit and keep moving forward.",
+      "Believe you can and you're halfway there. You are never too old to set another goal or to dream a new dream."
+    ];
+
+    const quoteElement = document.getElementById("quote");
+    const inputArea = document.getElementById("inputArea");
+    const resultElement = document.getElementById("result");
+    const timerElement = document.getElementById("timer");
+    const liveWPM = document.getElementById("liveWPM");
+    const submitBtn = document.getElementById("submitBtn");
+    const errorSound = document.getElementById("errorSound");
+
+    let quoteText = "";
+    let timer;
+    let timeLeft = 60;
+    let isRunning = false;
+    const duration = 60;
+
+    function getRandomQuote() {
+      const index = Math.floor(Math.random() * quotes.length);
+      return quotes[index];
+    }
+
+    function displayQuote(text) {
+      quoteElement.innerHTML = '';
+      text.split('').forEach(char => {
+        const span = document.createElement('span');
+        span.innerText = char;
+        span.classList.add('char');
+        quoteElement.appendChild(span);
+      });
+    }
+
+    function startTest() {
+      clearInterval(timer);
+      timeLeft = duration;
+      isRunning = false;
+      timerElement.innerText = `Time Left: ${timeLeft}s`;
+      inputArea.disabled = false;
+      inputArea.value = '';
+      resultElement.innerHTML = '';
+      liveWPM.innerText = '';
+      submitBtn.disabled = false;
+      quoteText = getRandomQuote();
+      displayQuote(quoteText);
+    }
+
+    function startTimer() {
+      isRunning = true;
+      timer = setInterval(() => {
+        timeLeft--;
+        timerElement.innerText = `Time Left: ${timeLeft}s`;
+        if (timeLeft <= 0) {
+          clearInterval(timer);
+          inputArea.disabled = true;
+          submitTyping();
+        }
+      }, 1000);
+    }
+
+    function submitTyping() {
+      clearInterval(timer);
+      inputArea.disabled = true;
+      submitBtn.disabled = true;
+
+      const typedWords = inputArea.value.trim().split(/\s+/);
+      const originalWords = quoteText.trim().split(/\s+/);
+      let correct = 0;
+
+      typedWords.forEach((word, i) => {
+        if (word === originalWords[i]) correct++;
+      });
+
+      const incorrect = typedWords.length - correct;
+      const wpm = Math.round((typedWords.length / duration) * 60);
+      const accuracy = Math.round((correct / originalWords.length) * 100);
+
+      resultElement.innerHTML = `
+        <strong>Submission Results:</strong><br>
+        WPM: ${wpm}<br>
+        Accuracy: ${accuracy}%<br>
+        Correct Words: ${correct}<br>
+        Incorrect Words: ${incorrect}
+      `;
+    }
+
+    inputArea.addEventListener('input', () => {
+      if (!isRunning) startTimer();
+
+      const typedText = inputArea.value;
+      const chars = quoteElement.querySelectorAll('.char');
+
+      chars.forEach((charSpan, i) => {
+        const typedChar = typedText[i];
+        charSpan.classList.remove('active');
+
+        if (typedChar == null) {
+          charSpan.classList.remove('correct', 'incorrect');
+          if (i === typedText.length) charSpan.classList.add('active');
+        } else if (typedChar === charSpan.innerText) {
+          charSpan.classList.add('correct');
+          charSpan.classList.remove('incorrect');
+        } else {
+          if (!charSpan.classList.contains('incorrect')) {
+            errorSound.currentTime = 0;
+            errorSound.play();
+          }
+          charSpan.classList.add('incorrect');
+          charSpan.classList.remove('correct');
+        }
+      });
+
+      const elapsed = duration - timeLeft;
+      if (elapsed > 0) {
+        const liveWords = inputArea.value.trim().split(/\s+/).length;
+        const currentWPM = Math.round((liveWords / elapsed) * 60);
+        liveWPM.innerText = `Live WPM: ${currentWPM}`;
+      }
+    });
+
+    function toggleTheme() {
+      document.body.classList.toggle('dark-mode');
+    }
+
+    startTest();
+  </script>
+
+</body>
+</html>
